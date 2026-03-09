@@ -54,27 +54,38 @@ def home():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    data = request.json
-    texto = data.get("contenido", "")
+    # Recibimos el texto crudo desde MacroDroid
+    texto = request.get_data(as_text=True)
     
+    # Filtro de seguridad: Si el mensaje no dice PagomóvilBDV, lo ignoramos
+    if "PagomóvilBDV" not in texto:
+        return {"status": "ignorado", "msg": "No es un pago BDV"}, 200
+
     try:
-        # Buscamos: Monto, Teléfono y Referencia
-        monto = re.search(r"por ([\d,.]+)", texto).group(1)
-        telf = re.search(r"de (\d+)", texto).group(1)
-        ref = re.search(r"Ref: (\d+)", texto).group(1)
+        # Extraemos el monto (Busca "Bs." seguido de los números)
+        monto_match = re.search(r"Bs\.?\s?([\d,.]+)", texto)
+        monto = monto_match.group(1) if monto_match else "0,00"
+
+        # Extraemos el teléfono (Busca "del " y acepta el guion, luego lo quita)
+        telf_match = re.search(r"del\s(04\d{2}[-]?\d{7})", texto)
+        telf = telf_match.group(1).replace("-", "") if telf_match else "Desconocido"
+
+        # Extraemos la Referencia (Busca "Ref: " y toma el número)
+        ref_match = re.search(r"Ref:\s?(\d+)", texto)
+        ref = ref_match.group(1)[-6:] if ref_match else "000000" # Muestra los últimos 6
         
         pago = {
             "monto": monto,
             "telf": telf,
-            "ref": ref[-6:], # Guardamos los últimos 6 dígitos
+            "ref": ref,
             "fecha": datetime.now().strftime("%H:%M:%S - %d/%m")
         }
-        pagos.insert(0, pago) # Ponemos el último pago de primero
+        pagos.insert(0, pago)
         return {"status": "ok"}, 200
+        
     except Exception as e:
-        # Esto nos dirá en los logs de Render exactamente qué falló
         print(f"Error procesando: {e}")
-        return {"status": "error", "msg": str(e)}, 200 # Cambiamos 400 por 200 para probar
+        return {"status": "error", "msg": str(e)}, 200
 
 @app.route('/api/pagos')
 def get_pagos():
