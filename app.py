@@ -8,7 +8,7 @@ app = Flask(__name__)
 # --- CONFIGURACIÓN DE TU BASE DE DATOS ---
 FIREBASE_URL = "https://validador-bdv-default-rtdb.firebaseio.com/pagos.json"
 
-# Plantilla Visual: Validador Corporativo con Fondo y Logo
+# Plantilla Visual: Diseño Lateral (Side-by-Side)
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -16,36 +16,36 @@ HTML_TEMPLATE = """
     <title>Validador Corporativo BDV</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        /* FONDO DE PANTALLA DE LA EMPRESA */
+        /* FONDO DE PANTALLA */
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             margin: 0; padding: 20px; 
             display: flex; flex-direction: column; align-items: center; min-height: 100vh;
-            
-            /* Cambia este enlace por la URL de tu imagen de fondo */
-            background-image: url('https://www.instagram.com/p/DLmcW8CsS8k/');
-            background-size: cover;
-            background-position: center;
-            background-attachment: fixed;
+            background-image: url('https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2000&auto=format&fit=crop');
+            background-size: cover; background-position: center; background-attachment: fixed;
         }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 40, 80, 0.75); z-index: -1; }
         
-        /* Capa oscura para que el formulario resalte sobre el fondo */
-        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 40, 80, 0.7); z-index: -1; }
-        
-        .container { width: 100%; max-width: 450px; z-index: 1; margin-top: 20px; }
-        
-        /* LOGO DE LA EMPRESA */
-        .logo-container { text-align: center; margin-bottom: 20px; }
-        .logo-container img { 
-            max-width: 200px; /* Tamaño del logo */
-            filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.3)); 
-            
-            /* Si tu logo es oscuro y no se ve bien, puedes ponerle un fondo blanco activando esto: */
-            /* background: white; padding: 10px; border-radius: 10px; */
+        /* LOGO SUPERIOR */
+        .logo-container { text-align: center; margin-bottom: 30px; margin-top: 10px; width: 100%; z-index: 1;}
+        .logo-container img { max-width: 220px; filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.3)); }
+
+        /* CONTENEDOR PRINCIPAL LATERAL (FLEXBOX) */
+        .main-wrapper {
+            display: flex;
+            flex-direction: row;
+            gap: 30px;
+            justify-content: center;
+            align-items: flex-start;
+            width: 100%;
+            max-width: 1000px;
+            z-index: 1;
         }
 
-        /* Estilos del Formulario */
-        .formulario-card { background: rgba(255, 255, 255, 0.95); padding: 30px 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); margin-bottom: 20px; border-top: 6px solid #0056b3; backdrop-filter: blur(5px); }
+        /* SECCIÓN IZQUIERDA: FORMULARIO */
+        .form-section { flex: 1; max-width: 450px; width: 100%; }
+        
+        .formulario-card { background: rgba(255, 255, 255, 0.95); padding: 30px 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border-top: 6px solid #0056b3; backdrop-filter: blur(5px); }
         .titulo-form { margin-top: 0; color: #003366; text-align: center; margin-bottom: 20px; font-size: 1.4em; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;}
         
         .form-group { margin-bottom: 15px; text-align: left; }
@@ -56,8 +56,13 @@ HTML_TEMPLATE = """
         .btn-submit { background: #198754; color: white; width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 1.1em; font-weight: bold; cursor: pointer; margin-top: 15px; transition: 0.3s; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 6px rgba(25, 135, 84, 0.3);}
         .btn-submit:hover { background: #146c43; transform: translateY(-2px); }
 
+        /* SECCIÓN DERECHA: RESULTADO */
+        .result-section { flex: 1; max-width: 500px; width: 100%; }
+
+        .placeholder-box { background: rgba(255, 255, 255, 0.1); border: 2px dashed rgba(255, 255, 255, 0.4); border-radius: 15px; padding: 40px 20px; text-align: center; color: rgba(255, 255, 255, 0.7); font-weight: bold; }
+
         /* Estilos del Recibo de Pago */
-        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border-left: 8px solid #ce1126; text-align: left; animation: fadeIn 0.4s ease-out; }
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); border-left: 8px solid #ce1126; text-align: left; animation: fadeIn 0.4s ease-out; }
         .card.verificado { border-left-color: #2ecc71; background: #fafffa; }
         .header-card { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px dashed #eee; padding-bottom: 15px; margin-bottom: 15px; }
         .monto { font-size: 1.8em; font-weight: 900; color: #1d1d1b; }
@@ -74,60 +79,72 @@ HTML_TEMPLATE = """
         .badge-ubicacion { text-align: center; color: #157347; font-weight: bold; margin-top: 10px; font-size: 0.95em; background: #e8f5e9; padding: 10px; border-radius: 8px; border: 1px dashed #157347;}
 
         .alerta-error { background: #ffeeba; padding: 15px; border-radius: 8px; border: 1px solid #ffc107; color: #856404; text-align: center; font-size: 0.95em; animation: fadeIn 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.2);}
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+
+        /* MODO TELÉFONO (Se apilan uno debajo del otro) */
+        @media (max-width: 850px) {
+            .main-wrapper { flex-direction: column; align-items: center; gap: 20px; }
+            .placeholder-box { display: none; } /* Oculta la caja vacía en teléfonos para ahorrar espacio */
+        }
     </style>
 </head>
 <body>
     <div class="overlay"></div>
     
-    <div class="container">
+    <div class="logo-container">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Banco_de_Venezuela_logo.svg/1024px-Banco_de_Venezuela_logo.svg.png" alt="Logo Empresa">
+    </div>
+
+    <div class="main-wrapper">
         
-        <div class="logo-container">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Banco_de_Venezuela_logo.svg/1024px-Banco_de_Venezuela_logo.svg.png" alt="Logo Empresa">
+        <div class="form-section">
+            <div class="formulario-card">
+                <h2 class="titulo-form">Validación de Pagos</h2>
+                
+                <div class="form-group">
+                    <label class="form-label">📍 Ubicación (Sucursal)</label>
+                    <select id="val_ubicacion" class="form-control">
+                        <option value="Cila 22">Cila 22</option>
+                        <option value="Cila 23">Cila 23</option>
+                        <option value="Cila 24">Cila 24</option>
+                        <option value="Cila 25">Cila 25</option>
+                        <option value="Cila Babilon">Cila Babilon</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">🏦 Entidad Emisora</label>
+                    <select id="val_banco" class="form-control" disabled>
+                        <option value="BDV">Banco BDV</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">💰 Monto (Bs.)</label>
+                    <input type="text" id="val_monto" class="form-control" placeholder="Ej: 25,50">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">🧾 Número de Referencia</label>
+                    <input type="text" id="val_referencia" class="form-control" placeholder="Últimos 4 o 6 dígitos">
+                </div>
+
+                <button class="btn-submit" onclick="buscarPago()">Validar Pago</button>
+            </div>
         </div>
 
-        <div class="formulario-card">
-            <h2 class="titulo-form">Validación de Pagos</h2>
-            
-            <div class="form-group">
-                <label class="form-label">📍 Ubicación (Sucursal)</label>
-                <select id="val_ubicacion" class="form-control">
-                    <option value="Cila 22">Cila 22</option>
-                    <option value="Cila 23">Cila 23</option>
-                    <option value="Cila 24">Cila 24</option>
-                    <option value="Cila 25">Cila 25</option>
-                    <option value="Cila Babilon">Cila Babilon</option>
-                </select>
+        <div class="result-section" id="resultadoBusqueda">
+            <div class="placeholder-box">
+                🔍<br>El resultado de la validación<br>aparecerá aquí
             </div>
-
-            <div class="form-group">
-                <label class="form-label">🏦 Entidad Emisora</label>
-                <select id="val_banco" class="form-control" disabled>
-                    <option value="BDV">Banco BDV</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">💰 Monto (Bs.)</label>
-                <input type="text" id="val_monto" class="form-control" placeholder="Ej: 25,50">
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">🧾 Número de Referencia</label>
-                <input type="text" id="val_referencia" class="form-control" placeholder="Últimos 4 o 6 dígitos">
-            </div>
-
-            <button class="btn-submit" onclick="buscarPago()">Validar Pago</button>
         </div>
-
-        <div id="resultadoBusqueda"></div>
 
     </div>
     
     <script>
         let todosLosPagos = [];
 
-        // Descarga silenciosa de pagos en segundo plano
         async function cargarPagosFondo() {
             try {
                 const res = await fetch('/api/pagos');
@@ -138,7 +155,7 @@ HTML_TEMPLATE = """
         cargarPagosFondo();
 
         function buscarPago() {
-            const monto = document.getElementById('val_monto').value.trim().replace('.', ','); // Normaliza el punto a coma
+            const monto = document.getElementById('val_monto').value.trim().replace('.', ','); 
             const ref = document.getElementById('val_referencia').value.trim();
             const divRes = document.getElementById('resultadoBusqueda');
 
@@ -147,7 +164,6 @@ HTML_TEMPLATE = """
                 return;
             }
 
-            // Busca coincidencia en la base de datos (Referencia obligatoria, Monto opcional pero estricto si se pone)
             const pagoEncontrado = todosLosPagos.find(p => {
                 let coincideRef = p.ref.includes(ref);
                 let coincideMonto = (monto === "") ? true : p.monto.includes(monto);
