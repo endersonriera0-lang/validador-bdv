@@ -55,25 +55,33 @@ def home():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    # Recibimos el texto crudo desde MacroDroid
     texto = request.get_data(as_text=True)
     
-    # Filtro de seguridad: Si el mensaje no dice PagomóvilBDV, lo ignoramos
-    if "PagomóvilBDV" not in texto:
-        return {"status": "ignorado", "msg": "No es un pago BDV"}, 200
+    # 1. IMPRIMIMOS EL MENSAJE EN RENDER PARA PODER VERLO
+    print("--- MENSAJE RECIBIDO DESDE EL TELÉFONO ---")
+    print(texto)
+    print("------------------------------------------")
+    
+    # Pasamos todo a minúsculas para que no importen las tildes ni mayúsculas
+    texto_limpio = texto.lower()
+
+    # Filtro: Si no dice pagomovil (con o sin tilde), lo ignoramos
+    if "pagomovil" not in texto_limpio and "pagomóvil" not in texto_limpio:
+        print("Ignorado: El texto no parece del banco.")
+        return {"status": "ignorado"}, 200
 
     try:
-        # Extraemos el monto (Busca "Bs." seguido de los números)
-        monto_match = re.search(r"Bs\.?\s?([\d,.]+)", texto)
+        # Extraemos el monto (Ignorando mayúsculas)
+        monto_match = re.search(r"bs\.?\s?([\d,.]+)", texto, re.IGNORECASE)
         monto = monto_match.group(1) if monto_match else "0,00"
 
-        # Extraemos el teléfono (Busca "del " y acepta el guion, luego lo quita)
-        telf_match = re.search(r"del\s(04\d{2}[-]?\d{7})", texto)
+        # Extraemos el teléfono
+        telf_match = re.search(r"del\s(04\d{2}[-]?\d{7})", texto, re.IGNORECASE)
         telf = telf_match.group(1).replace("-", "") if telf_match else "Desconocido"
 
-        # Extraemos la Referencia (Busca "Ref: " y toma el número)
-        ref_match = re.search(r"Ref:\s?(\d+)", texto)
-        ref = ref_match.group(1)[-6:] if ref_match else "000000" # Muestra los últimos 6
+        # Extraemos la Referencia
+        ref_match = re.search(r"ref:\s?(\d+)", texto, re.IGNORECASE)
+        ref = ref_match.group(1)[-6:] if ref_match else "000000" 
         
         pago = {
             "monto": monto,
@@ -82,15 +90,9 @@ def webhook():
             "fecha": datetime.now().strftime("%H:%M:%S - %d/%m")
         }
         pagos.insert(0, pago)
+        print("¡PAGO REGISTRADO CON ÉXITO!", pago) # Aviso de éxito
         return {"status": "ok"}, 200
         
     except Exception as e:
-        print(f"Error procesando: {e}")
+        print(f"Error sacando los datos: {e}")
         return {"status": "error", "msg": str(e)}, 200
-
-@app.route('/api/pagos')
-def get_pagos():
-    return jsonify(pagos)
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
