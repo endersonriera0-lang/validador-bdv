@@ -6,56 +6,88 @@ import requests
 app = Flask(__name__)
 
 # --- CONFIGURACIÓN DE TU BASE DE DATOS ---
-# Pega tu enlace de Firebase aquí. ¡NO BORRES el /pagos.json del final!
 FIREBASE_URL = "https://validador-bdv-default-rtdb.firebaseio.com/pagos.json"
 
-# Plantilla Visual: Validador con Formulario
+# Plantilla Visual: Validador Corporativo con Fondo y Logo
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Validador de Pagos BDV</title>
+    <title>Validador Corporativo BDV</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: sans-serif; background: #e9ecef; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .container { width: 100%; max-width: 450px; }
+        /* FONDO DE PANTALLA DE LA EMPRESA */
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; padding: 20px; 
+            display: flex; flex-direction: column; align-items: center; min-height: 100vh;
+            
+            /* Cambia este enlace por la URL de tu imagen de fondo */
+            background-image: url('https://www.instagram.com/p/DLmcW8CsS8k/');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
         
+        /* Capa oscura para que el formulario resalte sobre el fondo */
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 40, 80, 0.7); z-index: -1; }
+        
+        .container { width: 100%; max-width: 450px; z-index: 1; margin-top: 20px; }
+        
+        /* LOGO DE LA EMPRESA */
+        .logo-container { text-align: center; margin-bottom: 20px; }
+        .logo-container img { 
+            max-width: 200px; /* Tamaño del logo */
+            filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.3)); 
+            
+            /* Si tu logo es oscuro y no se ve bien, puedes ponerle un fondo blanco activando esto: */
+            /* background: white; padding: 10px; border-radius: 10px; */
+        }
+
         /* Estilos del Formulario */
-        .formulario-card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; border-top: 5px solid #0056b3; }
-        .titulo-form { margin-top: 0; color: #0056b3; text-align: center; margin-bottom: 20px; }
+        .formulario-card { background: rgba(255, 255, 255, 0.95); padding: 30px 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); margin-bottom: 20px; border-top: 6px solid #0056b3; backdrop-filter: blur(5px); }
+        .titulo-form { margin-top: 0; color: #003366; text-align: center; margin-bottom: 20px; font-size: 1.4em; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;}
+        
         .form-group { margin-bottom: 15px; text-align: left; }
-        .form-label { display: block; font-weight: bold; color: #555; margin-bottom: 5px; font-size: 0.85em; text-transform: uppercase; }
-        .form-control { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 15px; box-sizing: border-box; background: #fdfdfd; }
-        .form-control:focus { outline: none; border-color: #0056b3; }
+        .form-label { display: block; font-weight: bold; color: #444; margin-bottom: 6px; font-size: 0.85em; text-transform: uppercase; }
+        .form-control { width: 100%; padding: 12px; border: 1px solid #c0c0c0; border-radius: 8px; font-size: 15px; box-sizing: border-box; background: #fff; transition: 0.3s;}
+        .form-control:focus { outline: none; border-color: #0056b3; box-shadow: 0 0 0 3px rgba(0,86,179,0.1); }
         
-        .btn-submit { background: #198754; color: white; width: 100%; padding: 14px; border: none; border-radius: 6px; font-size: 1.1em; font-weight: bold; cursor: pointer; margin-top: 10px; transition: 0.3s; }
-        .btn-submit:hover { background: #157347; }
+        .btn-submit { background: #198754; color: white; width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 1.1em; font-weight: bold; cursor: pointer; margin-top: 15px; transition: 0.3s; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 6px rgba(25, 135, 84, 0.3);}
+        .btn-submit:hover { background: #146c43; transform: translateY(-2px); }
 
-        /* Estilos de la Tarjeta de Resultado */
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-left: 6px solid #ce1126; text-align: left; animation: fadeIn 0.5s; }
+        /* Estilos del Recibo de Pago */
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border-left: 8px solid #ce1126; text-align: left; animation: fadeIn 0.4s ease-out; }
         .card.verificado { border-left-color: #2ecc71; background: #fafffa; }
-        .header-card { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 12px; margin-bottom: 15px; }
-        .monto { font-size: 1.6em; font-weight: 900; color: #1d1d1b; }
+        .header-card { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px dashed #eee; padding-bottom: 15px; margin-bottom: 15px; }
+        .monto { font-size: 1.8em; font-weight: 900; color: #1d1d1b; }
         
-        .datos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        .datos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
         .dato-item { display: flex; flex-direction: column; }
-        .dato-label { font-size: 0.75em; color: #777; text-transform: uppercase; font-weight: bold; }
-        .dato-valor { font-size: 1em; color: #222; margin-top: 4px; font-weight: 500;}
-        .ref { font-family: monospace; font-size: 1.1em; color: #0056b3; font-weight: bold; }
+        .dato-label { font-size: 0.75em; color: #888; text-transform: uppercase; font-weight: bold; }
+        .dato-valor { font-size: 1.05em; color: #222; margin-top: 4px; font-weight: 600;}
+        .ref { font-family: monospace; font-size: 1.2em; color: #0056b3; font-weight: bold; }
         
-        .btn-verificar { width: 100%; background: #007bff; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 1em; font-weight: bold; cursor: pointer; }
-        .badge-verificado { color: #2ecc71; font-weight: bold; font-size: 1.1em; }
-        .badge-ubicacion { text-align: center; color: #157347; font-weight: bold; margin-top: 10px; font-size: 0.9em; background: #e8f5e9; padding: 8px; border-radius: 5px; }
+        .btn-verificar { width: 100%; background: #007bff; color: white; border: none; padding: 14px; border-radius: 8px; font-size: 1.05em; font-weight: bold; cursor: pointer; text-transform: uppercase; box-shadow: 0 4px 6px rgba(0, 123, 255, 0.3); transition: 0.3s;}
+        .btn-verificar:hover { background: #0056b3; }
+        .badge-verificado { color: #2ecc71; font-weight: bold; font-size: 1.2em; }
+        .badge-ubicacion { text-align: center; color: #157347; font-weight: bold; margin-top: 10px; font-size: 0.95em; background: #e8f5e9; padding: 10px; border-radius: 8px; border: 1px dashed #157347;}
 
-        .alerta-error { background: #ffeeba; padding: 15px; border-radius: 8px; border: 1px solid #ffc107; color: #856404; text-align: center; font-size: 0.95em; animation: fadeIn 0.3s; }
+        .alerta-error { background: #ffeeba; padding: 15px; border-radius: 8px; border: 1px solid #ffc107; color: #856404; text-align: center; font-size: 0.95em; animation: fadeIn 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.2);}
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
+    <div class="overlay"></div>
+    
     <div class="container">
         
+        <div class="logo-container">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Banco_de_Venezuela_logo.svg/1024px-Banco_de_Venezuela_logo.svg.png" alt="Logo Empresa">
+        </div>
+
         <div class="formulario-card">
-            <h2 class="titulo-form">💳 Validación de Pagos</h2>
+            <h2 class="titulo-form">Validación de Pagos</h2>
             
             <div class="form-group">
                 <label class="form-label">📍 Ubicación (Sucursal)</label>
@@ -76,8 +108,8 @@ HTML_TEMPLATE = """
             </div>
 
             <div class="form-group">
-                <label class="form-label">📱 Teléfono (Opcional)</label>
-                <input type="text" id="val_telefono" class="form-control" placeholder="Ej: 04121234567">
+                <label class="form-label">💰 Monto (Bs.)</label>
+                <input type="text" id="val_monto" class="form-control" placeholder="Ej: 25,50">
             </div>
 
             <div class="form-group">
@@ -85,7 +117,7 @@ HTML_TEMPLATE = """
                 <input type="text" id="val_referencia" class="form-control" placeholder="Últimos 4 o 6 dígitos">
             </div>
 
-            <button class="btn-submit" onclick="buscarPago()">BUSCAR Y VALIDAR</button>
+            <button class="btn-submit" onclick="buscarPago()">Validar Pago</button>
         </div>
 
         <div id="resultadoBusqueda"></div>
@@ -95,7 +127,7 @@ HTML_TEMPLATE = """
     <script>
         let todosLosPagos = [];
 
-        // La app descarga los pagos en el fondo silenciosamente
+        // Descarga silenciosa de pagos en segundo plano
         async function cargarPagosFondo() {
             try {
                 const res = await fetch('/api/pagos');
@@ -106,17 +138,21 @@ HTML_TEMPLATE = """
         cargarPagosFondo();
 
         function buscarPago() {
-            const telf = document.getElementById('val_telefono').value.trim();
+            const monto = document.getElementById('val_monto').value.trim().replace('.', ','); // Normaliza el punto a coma
             const ref = document.getElementById('val_referencia').value.trim();
             const divRes = document.getElementById('resultadoBusqueda');
 
             if(ref === "") {
-                divRes.innerHTML = "<div class='alerta-error'>⚠️ Debes ingresar el N° de Referencia para buscar.</div>";
+                divRes.innerHTML = "<div class='alerta-error'>⚠️ <b>Campo obligatorio:</b> Debes ingresar el N° de Referencia.</div>";
                 return;
             }
 
-            // Busca una coincidencia en la base de datos
-            const pagoEncontrado = todosLosPagos.find(p => p.ref.includes(ref) && p.telf.includes(telf));
+            // Busca coincidencia en la base de datos (Referencia obligatoria, Monto opcional pero estricto si se pone)
+            const pagoEncontrado = todosLosPagos.find(p => {
+                let coincideRef = p.ref.includes(ref);
+                let coincideMonto = (monto === "") ? true : p.monto.includes(monto);
+                return coincideRef && coincideMonto;
+            });
 
             if(pagoEncontrado) {
                 divRes.innerHTML = `
@@ -135,7 +171,7 @@ HTML_TEMPLATE = """
                         
                         ${pagoEncontrado.estado !== 'verificado' 
                             ? `<button class="btn-verificar" onclick="marcarVerificado('${pagoEncontrado.id}', this)">✔️ Confirmar Pago en Caja</button>` 
-                            : `<div class="badge-ubicacion">Despachado en: ${pagoEncontrado.ubicacion || 'Otra sucursal'}</div>`}
+                            : `<div class="badge-ubicacion">📦 Despachado en: ${pagoEncontrado.ubicacion || 'Otra sucursal'}</div>`}
                     </div>
                 `;
             } else {
@@ -148,15 +184,14 @@ HTML_TEMPLATE = """
             boton.innerText = "Procesando...";
             boton.style.background = "#888";
             
-            // Enviamos a la base de datos el estado y la sucursal donde se verificó
             await fetch('/api/verificar/' + id_pago, { 
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ubicacion: ubicacionSeleccionada })
             });
             
-            await cargarPagosFondo(); // Recargamos
-            buscarPago(); // Volvemos a mostrar la tarjeta actualizada
+            await cargarPagosFondo(); 
+            buscarPago(); 
         }
     </script>
 </body>
@@ -188,14 +223,12 @@ def get_pagos():
 @app.route('/api/verificar/<id_pago>', methods=['POST'])
 def verificar_pago(id_pago):
     try:
-        # Obtenemos la ubicación desde el formulario web
         data = request.get_json() or {}
         ubicacion_caja = data.get("ubicacion", "Desconocida")
 
         base_url = FIREBASE_URL.replace('.json', '')
         url_item = f"{base_url}/{id_pago}.json"
         
-        # Guardamos que fue verificado y en qué ubicación
         requests.patch(url_item, json={
             "estado": "verificado",
             "ubicacion": ubicacion_caja
