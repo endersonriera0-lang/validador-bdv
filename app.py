@@ -9,7 +9,7 @@ app = Flask(__name__)
 # Pega tu enlace de Firebase aquí. ¡NO BORRES el /pagos.json del final!
 FIREBASE_URL = "https://validador-bdv-default-rtdb.firebaseio.com/pagos.json"
 
-# Plantilla Visual
+# Plantilla Visual: Módulo Profesional
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -17,41 +17,106 @@ HTML_TEMPLATE = """
     <title>Panel de Pagos BDV</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: sans-serif; background: #f0f2f5; padding: 20px; text-align: center; }
-        .container { max-width: 500px; margin: auto; }
-        .card { background: white; padding: 15px; margin: 10px 0; border-radius: 10px; 
-                box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 6px solid #ce1126; text-align: left; }
-        .monto { font-size: 1.2em; font-weight: bold; color: #2ecc71; }
-        .info { color: #555; font-size: 0.9em; margin-top: 3px; }
-        .ref { font-family: monospace; font-size: 1.1em; color: #333; }
+        body { font-family: sans-serif; background: #e9ecef; padding: 20px; text-align: center; }
+        .container { max-width: 550px; margin: auto; }
+        .buscador { width: 95%; padding: 14px; margin-bottom: 20px; border-radius: 8px; border: 2px solid #ddd; font-size: 16px; outline: none; transition: border-color 0.3s;}
+        .buscador:focus { border-color: #007bff; }
+        
+        /* Diseño del Módulo de Pago */
+        .card { background: white; padding: 20px; margin: 15px 0; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-top: 5px solid #ce1126; text-align: left; transition: all 0.3s; }
+        .card.verificado { border-top-color: #2ecc71; background: #fafffa; }
+        
+        .header-card { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 12px; margin-bottom: 15px; }
+        .monto { font-size: 1.6em; font-weight: 900; color: #1d1d1b; }
+        
+        /* Cuadrícula de Datos */
+        .datos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        .dato-item { display: flex; flex-direction: column; }
+        .dato-label { font-size: 0.75em; color: #777; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px; }
+        .dato-valor { font-size: 1em; color: #222; margin-top: 4px; font-weight: 500;}
+        .ref { font-family: monospace; font-size: 1.1em; color: #0056b3; font-weight: bold; }
+        
+        /* Botones y Etiquetas */
+        .btn-verificar { width: 100%; background: #007bff; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 1em; font-weight: bold; cursor: pointer; transition: background 0.3s; }
+        .btn-verificar:hover { background: #0056b3; }
+        .badge-verificado { color: #2ecc71; font-weight: bold; font-size: 1.2em; display: flex; align-items: center; gap: 5px;}
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>💰 Pagos Recibidos BDV</h2>
-        <div id="lista">Esperando conexión con la base de datos...</div>
+        <h2 style="color: #333; margin-bottom: 25px;">💻 Módulo de Caja BDV</h2>
+        <input type="text" id="inputBusqueda" class="buscador" onkeyup="filtrarPagos()" placeholder="🔍 Buscar N° de Referencia o Monto...">
+        <div id="lista">Conectando con la base de datos...</div>
     </div>
+    
     <script>
+        let todosLosPagos = [];
+
         async function actualizar() {
             try {
                 const res = await fetch('/api/pagos');
-                const data = await res.json();
-                if(data.length === 0) {
-                    document.getElementById('lista').innerHTML = "No hay pagos registrados aún en la Base de Datos.";
-                    return;
-                }
-                document.getElementById('lista').innerHTML = data.map(p => `
-                    <div class="card">
-                        <div class="monto">Bs. ${p.monto}</div>
-                        <div class="info"><b>Ref:</b> <span class="ref">${p.ref}</span></div>
-                        <div class="info"><b>Telf:</b> ${p.telf}</div>
-                        <div class="info" style="font-size:0.7em; margin-top:8px; color:#999;">${p.fecha}</div>
-                    </div>
-                `).join('');
+                todosLosPagos = await res.json();
+                filtrarPagos(); 
             } catch(e) {
                 console.log("Esperando conexión...");
             }
         }
+
+        function filtrarPagos() {
+            const texto = document.getElementById('inputBusqueda').value.toLowerCase();
+            const divLista = document.getElementById('lista');
+            
+            if(todosLosPagos.length === 0) {
+                divLista.innerHTML = "<p style='color:#777;'>No hay pagos registrados aún en la Base de Datos.</p>";
+                return;
+            }
+
+            const pagosFiltrados = todosLosPagos.filter(p => 
+                p.ref.includes(texto) || p.monto.includes(texto)
+            );
+
+            divLista.innerHTML = pagosFiltrados.map(p => `
+                <div class="card ${p.estado === 'verificado' ? 'verificado' : ''}">
+                    
+                    <div class="header-card">
+                        <div class="monto">Bs. ${p.monto}</div>
+                        ${p.estado === 'verificado' ? '<div class="badge-verificado">✅ Verificado</div>' : ''}
+                    </div>
+                    
+                    <div class="datos-grid">
+                        <div class="dato-item">
+                            <span class="dato-label">🏦 Entidad Emisora</span>
+                            <span class="dato-valor">Banco BDV</span>
+                        </div>
+                        <div class="dato-item">
+                            <span class="dato-label">📅 Fecha de Pago</span>
+                            <span class="dato-valor">${p.fecha}</span>
+                        </div>
+                        <div class="dato-item">
+                            <span class="dato-label">📱 Teléfono Emisor</span>
+                            <span class="dato-valor">${p.telf}</span>
+                        </div>
+                        <div class="dato-item">
+                            <span class="dato-label">🧾 N° Referencia</span>
+                            <span class="dato-valor ref">${p.ref}</span>
+                        </div>
+                    </div>
+                    
+                    ${p.estado !== 'verificado' 
+                        ? `<button class="btn-verificar" onclick="marcarVerificado('${p.id}', this)">Marcar Pago como Verificado</button>` 
+                        : ''}
+                </div>
+            `).join('');
+        }
+
+        async function marcarVerificado(id_pago, boton) {
+            boton.innerText = "Procesando...";
+            boton.style.background = "#888";
+            
+            await fetch('/api/verificar/' + id_pago, { method: 'POST' });
+            actualizar(); 
+        }
+
         setInterval(actualizar, 3000);
         actualizar();
     </script>
@@ -66,17 +131,31 @@ def home():
 @app.route('/api/pagos')
 def get_pagos():
     try:
-        # Aquí la app lee los datos guardados en Firebase
         respuesta = requests.get(FIREBASE_URL)
         if respuesta.status_code == 200 and respuesta.json():
             datos = respuesta.json()
-            # Convertimos los datos a una lista y la invertimos para ver los nuevos arriba
-            lista_pagos = list(datos.values())
+            lista_pagos = []
+            for id_firebase, info_pago in datos.items():
+                info_pago['id'] = id_firebase
+                if 'estado' not in info_pago:
+                    info_pago['estado'] = 'pendiente'
+                lista_pagos.append(info_pago)
+                
             lista_pagos.reverse()
             return jsonify(lista_pagos)
         return jsonify([])
     except:
         return jsonify([])
+
+@app.route('/api/verificar/<id_pago>', methods=['POST'])
+def verificar_pago(id_pago):
+    try:
+        base_url = FIREBASE_URL.replace('.json', '')
+        url_item = f"{base_url}/{id_pago}.json"
+        requests.patch(url_item, json={"estado": "verificado"})
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"status": "error", "msg": str(e)})
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -95,20 +174,19 @@ def webhook():
 
         ref_match = re.search(r"ref:\s?(\d+)", texto, re.IGNORECASE)
         ref = ref_match.group(1)[-6:] if ref_match else "000000" 
-        
-        # Ajustamos la hora para Venezuela (Restamos 4 horas a la hora mundial)
+
         hora_venezuela = datetime.utcnow() - timedelta(hours=4)
         
         pago = {
             "monto": monto,
             "telf": telf,
             "ref": ref,
-            "fecha": hora_venezuela.strftime("%H:%M:%S - %d/%m/%Y")
+            "banco": "Banco BDV", # <-- FIJADO A BANCO BDV
+            "fecha": hora_venezuela.strftime("%d/%m/%Y - %I:%M %p"),
+            "estado": "pendiente"
         }
         
-        # Guardamos el pago para siempre en la Base de Datos
         requests.post(FIREBASE_URL, json=pago)
-        
         return {"status": "ok"}, 200
         
     except Exception as e:
