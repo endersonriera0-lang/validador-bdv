@@ -71,8 +71,10 @@ def webhook():
         }
         pagos.insert(0, pago) # Ponemos el último pago de primero
         return {"status": "ok"}, 200
-    except:
-        return {"status": "error", "msg": "Formato no reconocido"}, 400
+    except Exception as e:
+        # Esto nos dirá en los logs de Render exactamente qué falló
+        print(f"Error procesando: {e}")
+        return {"status": "error", "msg": str(e)}, 200 # Cambiamos 400 por 200 para probar
 
 @app.route('/api/pagos')
 def get_pagos():
