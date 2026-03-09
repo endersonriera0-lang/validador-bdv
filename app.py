@@ -1,13 +1,15 @@
 from flask import Flask, request, jsonify, render_template_string
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
+import requests
 
 app = Flask(__name__)
 
-# Base de datos en memoria
-pagos = []
+# --- CONFIGURACIÓN DE TU BASE DE DATOS ---
+# Pega tu enlace de Firebase aquí. ¡NO BORRES el /pagos.json del final!
+FIREBASE_URL = "https://validador-bdv-default-rtdb.firebaseio.com/pagos.json"
 
-# Plantilla Visual (El panel de control que tú ves)
+# Plantilla Visual
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -27,7 +29,7 @@ HTML_TEMPLATE = """
 <body>
     <div class="container">
         <h2>💰 Pagos Recibidos BDV</h2>
-        <div id="lista">Esperando pagos...</div>
+        <div id="lista">Esperando conexión con la base de datos...</div>
     </div>
     <script>
         async function actualizar() {
@@ -35,7 +37,7 @@ HTML_TEMPLATE = """
                 const res = await fetch('/api/pagos');
                 const data = await res.json();
                 if(data.length === 0) {
-                    document.getElementById('lista').innerHTML = "No hay pagos registrados aún";
+                    document.getElementById('lista').innerHTML = "No hay pagos registrados aún en la Base de Datos.";
                     return;
                 }
                 document.getElementById('lista').innerHTML = data.map(p => `
@@ -57,17 +59,25 @@ HTML_TEMPLATE = """
 </html>
 """
 
-# Ruta principal (Muestra la página web)
 @app.route('/')
 def home():
     return render_template_string(HTML_TEMPLATE)
 
-# Ruta que le da los datos a la página web
 @app.route('/api/pagos')
 def get_pagos():
-    return jsonify(pagos)
+    try:
+        # Aquí la app lee los datos guardados en Firebase
+        respuesta = requests.get(FIREBASE_URL)
+        if respuesta.status_code == 200 and respuesta.json():
+            datos = respuesta.json()
+            # Convertimos los datos a una lista y la invertimos para ver los nuevos arriba
+            lista_pagos = list(datos.values())
+            lista_pagos.reverse()
+            return jsonify(lista_pagos)
+        return jsonify([])
+    except:
+        return jsonify([])
 
-# Ruta que recibe los datos desde MacroDroid
 @app.route('/webhook', methods=['POST'])
 def webhook():
     texto = request.get_data(as_text=True)
@@ -86,14 +96,19 @@ def webhook():
         ref_match = re.search(r"ref:\s?(\d+)", texto, re.IGNORECASE)
         ref = ref_match.group(1)[-6:] if ref_match else "000000" 
         
+        # Ajustamos la hora para Venezuela (Restamos 4 horas a la hora mundial)
+        hora_venezuela = datetime.utcnow() - timedelta(hours=4)
+        
         pago = {
             "monto": monto,
             "telf": telf,
             "ref": ref,
-            "fecha": datetime.now().strftime("%H:%M:%S - %d/%m/%Y")
+            "fecha": hora_venezuela.strftime("%H:%M:%S - %d/%m/%Y")
         }
-        pagos.insert(0, pago) # Añade el pago más reciente arriba
-        print("PAGO EXITOSO:", pago)
+        
+        # Guardamos el pago para siempre en la Base de Datos
+        requests.post(FIREBASE_URL, json=pago)
+        
         return {"status": "ok"}, 200
         
     except Exception as e:
