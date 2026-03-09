@@ -4,6 +4,7 @@ import re
 
 app = Flask(__name__)
 
+
 # Base de datos en memoria (se borra si reinicias el servidor)
 pagos = []
 
