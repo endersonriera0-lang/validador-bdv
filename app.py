@@ -8,7 +8,6 @@ app = Flask(__name__)
 # --- CONFIGURACIÓN DE TU BASE DE DATOS ---
 FIREBASE_URL = "https://validador-bdv-default-rtdb.firebaseio.com/pagos.json"
 
-# Plantilla Visual: Diseño Lateral (Side-by-Side)
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -26,23 +25,14 @@ HTML_TEMPLATE = """
         }
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 40, 80, 0.75); z-index: -1; }
         
-        /* LOGO SUPERIOR */
         .logo-container { text-align: center; margin-bottom: 30px; margin-top: 10px; width: 100%; z-index: 1;}
         .logo-container img { max-width: 220px; filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.3)); }
 
-        /* CONTENEDOR PRINCIPAL LATERAL (FLEXBOX) */
         .main-wrapper {
-            display: flex;
-            flex-direction: row;
-            gap: 30px;
-            justify-content: center;
-            align-items: flex-start;
-            width: 100%;
-            max-width: 1000px;
-            z-index: 1;
+            display: flex; flex-direction: row; gap: 30px; justify-content: center;
+            align-items: flex-start; width: 100%; max-width: 1000px; z-index: 1;
         }
 
-        /* SECCIÓN IZQUIERDA: FORMULARIO */
         .form-section { flex: 1; max-width: 450px; width: 100%; }
         
         .formulario-card { background: rgba(255, 255, 255, 0.95); padding: 30px 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border-top: 6px solid #0056b3; backdrop-filter: blur(5px); }
@@ -56,14 +46,10 @@ HTML_TEMPLATE = """
         .btn-submit { background: #198754; color: white; width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 1.1em; font-weight: bold; cursor: pointer; margin-top: 15px; transition: 0.3s; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 6px rgba(25, 135, 84, 0.3);}
         .btn-submit:hover { background: #146c43; transform: translateY(-2px); }
 
-        /* SECCIÓN DERECHA: RESULTADO */
         .result-section { flex: 1; max-width: 500px; width: 100%; }
-
         .placeholder-box { background: rgba(255, 255, 255, 0.1); border: 2px dashed rgba(255, 255, 255, 0.4); border-radius: 15px; padding: 40px 20px; text-align: center; color: rgba(255, 255, 255, 0.7); font-weight: bold; }
 
-        /* Estilos del Recibo de Pago */
-        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); border-left: 8px solid #ce1126; text-align: left; animation: fadeIn 0.4s ease-out; }
-        .card.verificado { border-left-color: #2ecc71; background: #fafffa; }
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); border-left: 8px solid #ce1126; text-align: left; animation: slideIn 0.4s ease-out; }
         .header-card { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px dashed #eee; padding-bottom: 15px; margin-bottom: 15px; }
         .monto { font-size: 1.8em; font-weight: 900; color: #1d1d1b; }
         
@@ -75,29 +61,58 @@ HTML_TEMPLATE = """
         
         .btn-verificar { width: 100%; background: #007bff; color: white; border: none; padding: 14px; border-radius: 8px; font-size: 1.05em; font-weight: bold; cursor: pointer; text-transform: uppercase; box-shadow: 0 4px 6px rgba(0, 123, 255, 0.3); transition: 0.3s;}
         .btn-verificar:hover { background: #0056b3; }
-        .badge-verificado { color: #2ecc71; font-weight: bold; font-size: 1.2em; }
-        .badge-ubicacion { text-align: center; color: #157347; font-weight: bold; margin-top: 10px; font-size: 0.95em; background: #e8f5e9; padding: 10px; border-radius: 8px; border: 1px dashed #157347;}
-
-        .alerta-error { background: #ffeeba; padding: 15px; border-radius: 8px; border: 1px solid #ffc107; color: #856404; text-align: center; font-size: 0.95em; animation: fadeIn 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.2);}
         
-        @keyframes fadeIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+        /* ALERTA DE PAGO DUPLICADO */
+        .alerta-duplicado { background: #ffe3e3; padding: 25px; border-radius: 12px; border: 3px solid #ce1126; color: #900000; text-align: center; animation: slideIn 0.3s; box-shadow: 0 10px 20px rgba(206, 17, 38, 0.3);}
+        .alerta-duplicado h3 { margin-top: 0; font-size: 1.5em; text-transform: uppercase; }
+        .alerta-duplicado p { font-size: 1.1em; margin-bottom: 5px; color: #333; }
+        
+        .alerta-error { background: #ffeeba; padding: 15px; border-radius: 8px; border: 1px solid #ffc107; color: #856404; text-align: center; font-size: 0.95em; animation: slideIn 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.2);}
+        
+        .pantalla-exito {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85); z-index: 9999;
+            display: none; justify-content: center; align-items: center;
+            backdrop-filter: blur(8px);
+        }
+        .caja-exito {
+            background: #2ecc71; padding: 40px 60px; border-radius: 20px;
+            text-align: center; color: white; border: 5px solid white;
+            box-shadow: 0 20px 50px rgba(46, 204, 113, 0.5);
+            animation: estallar 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .icono-exito { font-size: 90px; margin-bottom: 10px; line-height: 1;}
+        .texto-exito { font-size: 38px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;}
+        .subtexto-exito { font-size: 18px; margin-top: 10px; opacity: 0.9; font-weight: bold;}
+        
+        @keyframes estallar { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
 
-        /* MODO TELÉFONO (Se apilan uno debajo del otro) */
         @media (max-width: 850px) {
             .main-wrapper { flex-direction: column; align-items: center; gap: 20px; }
-            .placeholder-box { display: none; } /* Oculta la caja vacía en teléfonos para ahorrar espacio */
+            .placeholder-box { display: none; }
+            .caja-exito { padding: 30px 20px; width: 85%; box-sizing: border-box;}
+            .texto-exito { font-size: 28px; }
         }
     </style>
 </head>
 <body>
     <div class="overlay"></div>
+
+    <div id="pantallaExito" class="pantalla-exito">
+        <div class="caja-exito">
+            <div class="icono-exito">✅</div>
+            <div class="texto-exito">¡PAGO VERIFICADO!</div>
+            <div id="textoSucursal" class="subtexto-exito">Procesado con éxito</div>
+        </div>
+    </div>
     
     <div class="logo-container">
         <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Banco_de_Venezuela_logo.svg/1024px-Banco_de_Venezuela_logo.svg.png" alt="Logo Empresa">
     </div>
 
     <div class="main-wrapper">
-        
         <div class="form-section">
             <div class="formulario-card">
                 <h2 class="titulo-form">Validación de Pagos</h2>
@@ -112,34 +127,25 @@ HTML_TEMPLATE = """
                         <option value="Cila Babilon">Cila Babilon</option>
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label class="form-label">🏦 Entidad Emisora</label>
-                    <select id="val_banco" class="form-control" disabled>
-                        <option value="BDV">Banco BDV</option>
-                    </select>
+                    <select id="val_banco" class="form-control" disabled><option value="BDV">Banco BDV</option></select>
                 </div>
-
                 <div class="form-group">
                     <label class="form-label">💰 Monto (Bs.)</label>
                     <input type="text" id="val_monto" class="form-control" placeholder="Ej: 25,50">
                 </div>
-
                 <div class="form-group">
                     <label class="form-label">🧾 Número de Referencia</label>
                     <input type="text" id="val_referencia" class="form-control" placeholder="Últimos 4 o 6 dígitos">
                 </div>
-
                 <button class="btn-submit" onclick="buscarPago()">Validar Pago</button>
             </div>
         </div>
 
         <div class="result-section" id="resultadoBusqueda">
-            <div class="placeholder-box">
-                🔍<br>El resultado de la validación<br>aparecerá aquí
-            </div>
+            <div class="placeholder-box">🔍<br>El resultado de la validación<br>aparecerá aquí</div>
         </div>
-
     </div>
     
     <script>
@@ -155,14 +161,21 @@ HTML_TEMPLATE = """
         cargarPagosFondo();
 
         function buscarPago() {
-            const monto = document.getElementById('val_monto').value.trim().replace('.', ','); 
-            const ref = document.getElementById('val_referencia').value.trim();
+            const inputMonto = document.getElementById('val_monto');
+            const inputRef = document.getElementById('val_referencia');
+            
+            const monto = inputMonto.value.trim().replace('.', ','); 
+            const ref = inputRef.value.trim();
             const divRes = document.getElementById('resultadoBusqueda');
 
             if(ref === "") {
                 divRes.innerHTML = "<div class='alerta-error'>⚠️ <b>Campo obligatorio:</b> Debes ingresar el N° de Referencia.</div>";
                 return;
             }
+
+            // LIMPIEZA AUTOMÁTICA DE LOS CAMPOS
+            inputMonto.value = '';
+            inputRef.value = '';
 
             const pagoEncontrado = todosLosPagos.find(p => {
                 let coincideRef = p.ref.includes(ref);
@@ -171,32 +184,47 @@ HTML_TEMPLATE = """
             });
 
             if(pagoEncontrado) {
-                divRes.innerHTML = `
-                    <div class="card ${pagoEncontrado.estado === 'verificado' ? 'verificado' : ''}">
-                        <div class="header-card">
-                            <div class="monto">Bs. ${pagoEncontrado.monto}</div>
-                            ${pagoEncontrado.estado === 'verificado' ? '<div class="badge-verificado">✅ Verificado</div>' : ''}
+                if(pagoEncontrado.estado === 'verificado') {
+                    // ESCUDO ANTI-FRAUDE: ALERTA DE PAGO DUPLICADO
+                    divRes.innerHTML = `
+                        <div class="alerta-duplicado">
+                            <h3>🚨 PAGO DUPLICADO 🚨</h3>
+                            <p>Este pago <b>ya fue procesado y validado</b> anteriormente en el sistema.</p>
+                            <br>
+                            <p><b>📍 Lugar de despacho:</b> ${pagoEncontrado.ubicacion || 'Desconocido'}</p>
+                            <p><b>🧾 Referencia:</b> ${pagoEncontrado.ref}</p>
+                            <p><b>💰 Monto:</b> Bs. ${pagoEncontrado.monto}</p>
+                            <br>
+                            <i style="color: #600; font-size: 0.9em;">⚠️ No despache mercancía bajo esta referencia nuevamente.</i>
                         </div>
-                        
-                        <div class="datos-grid">
-                            <div class="dato-item"><span class="dato-label">🏦 Entidad Emisora</span><span class="dato-valor">Banco BDV</span></div>
-                            <div class="dato-item"><span class="dato-label">📅 Fecha de Pago</span><span class="dato-valor">${pagoEncontrado.fecha}</span></div>
-                            <div class="dato-item"><span class="dato-label">📱 Teléfono Emisor</span><span class="dato-valor">${pagoEncontrado.telf}</span></div>
-                            <div class="dato-item"><span class="dato-label">🧾 N° Referencia</span><span class="dato-valor ref">${pagoEncontrado.ref}</span></div>
+                    `;
+                } else {
+                    // PAGO NUEVO (LISTO PARA VERIFICAR)
+                    divRes.innerHTML = `
+                        <div class="card">
+                            <div class="header-card">
+                                <div class="monto">Bs. ${pagoEncontrado.monto}</div>
+                                <div style="color: #007bff; font-weight: bold;">⏳ Pendiente</div>
+                            </div>
+                            <div class="datos-grid">
+                                <div class="dato-item"><span class="dato-label">🏦 Entidad Emisora</span><span class="dato-valor">Banco BDV</span></div>
+                                <div class="dato-item"><span class="dato-label">📅 Fecha de Pago</span><span class="dato-valor">${pagoEncontrado.fecha}</span></div>
+                                <div class="dato-item"><span class="dato-label">📱 Teléfono Emisor</span><span class="dato-valor">${pagoEncontrado.telf}</span></div>
+                                <div class="dato-item"><span class="dato-label">🧾 N° Referencia</span><span class="dato-valor ref">${pagoEncontrado.ref}</span></div>
+                            </div>
+                            
+                            <button class="btn-verificar" onclick="marcarVerificado('${pagoEncontrado.id}', this)">✔️ Confirmar Pago en Caja</button>
                         </div>
-                        
-                        ${pagoEncontrado.estado !== 'verificado' 
-                            ? `<button class="btn-verificar" onclick="marcarVerificado('${pagoEncontrado.id}', this)">✔️ Confirmar Pago en Caja</button>` 
-                            : `<div class="badge-ubicacion">📦 Despachado en: ${pagoEncontrado.ubicacion || 'Otra sucursal'}</div>`}
-                    </div>
-                `;
+                    `;
+                }
             } else {
-                divRes.innerHTML = `<div class='alerta-error'><strong>⚠️ Pago no encontrado.</strong><br><br>El pago no se ha reflejado en el banco o los datos son incorrectos. Espere unos segundos e intente de nuevo.</div>`;
+                divRes.innerHTML = `<div class='alerta-error'><strong>⚠️ Pago no encontrado.</strong><br><br>El pago no se ha reflejado en el banco o los datos ingresados son incorrectos. Verifique e intente de nuevo.</div>`;
             }
         }
 
         async function marcarVerificado(id_pago, boton) {
             const ubicacionSeleccionada = document.getElementById('val_ubicacion').value;
+            
             boton.innerText = "Procesando...";
             boton.style.background = "#888";
             
@@ -206,8 +234,21 @@ HTML_TEMPLATE = """
                 body: JSON.stringify({ ubicacion: ubicacionSeleccionada })
             });
             
-            await cargarPagosFondo(); 
-            buscarPago(); 
+            document.getElementById('textoSucursal').innerText = "Despachado en: " + ubicacionSeleccionada;
+            const pantalla = document.getElementById('pantallaExito');
+            pantalla.style.display = 'flex';
+            
+            setTimeout(async () => {
+                pantalla.style.display = 'none';
+                await cargarPagosFondo(); 
+                
+                // DEJA LA CAJA LIMPIA PARA EL SIGUIENTE CLIENTE
+                document.getElementById('resultadoBusqueda').innerHTML = `
+                    <div class="placeholder-box" style="border-color: #2ecc71; color: #2ecc71;">
+                        ✅<br>Pago registrado correctamente<br>Listo para la próxima validación
+                    </div>
+                `;
+            }, 2500);
         }
     </script>
 </body>
