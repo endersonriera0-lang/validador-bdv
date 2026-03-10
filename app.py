@@ -16,40 +16,49 @@ HTML_TEMPLATE = """
     <title>Validador Corporativo BDV</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        /* FONDO DE PANTALLA */
+        /* 🎨 DISEÑO CORPORATIVO CILA 🎨 */
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             margin: 0; padding: 20px; 
             display: flex; flex-direction: column; align-items: center; min-height: 100vh;
-            background-image: url('https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2000&auto=format&fit=crop');
+            
+            /* --- FONDO DE PANTALLA --- */
+            background-image: url('https://i.imgur.com/rgsa5XH.png');
             background-size: cover; background-position: center; background-attachment: fixed;
         }
-        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 40, 80, 0.75); z-index: -1; }
         
+        /* Capa oscura translúcida para legibilidad */
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 40, 80, 0.75); z-index: -1; backdrop-filter: blur(2px); }
+        
+        /* --- LOGO CORPORATIVO --- */
         .logo-container { text-align: center; margin-bottom: 30px; margin-top: 10px; width: 100%; z-index: 1;}
-        .logo-container img { max-width: 220px; filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.3)); }
+        .logo-container img { max-width: 200px; filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.3)); }
 
+        /* CONTENEDOR LATERAL (FLEXBOX) */
         .main-wrapper {
             display: flex; flex-direction: row; gap: 30px; justify-content: center;
             align-items: flex-start; width: 100%; max-width: 1000px; z-index: 1;
         }
 
+        /* --- FORMULARIO (IZQUIERDA) --- */
         .form-section { flex: 1; max-width: 450px; width: 100%; }
         
-        .formulario-card { background: rgba(255, 255, 255, 0.95); padding: 30px 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border-top: 6px solid #0056b3; backdrop-filter: blur(5px); }
+        .formulario-card { background: rgba(255, 255, 255, 0.95); padding: 30px 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border-top: 6px solid #198754; backdrop-filter: blur(5px); }
         .titulo-form { margin-top: 0; color: #003366; text-align: center; margin-bottom: 20px; font-size: 1.4em; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;}
         
         .form-group { margin-bottom: 15px; text-align: left; }
         .form-label { display: block; font-weight: bold; color: #444; margin-bottom: 6px; font-size: 0.85em; text-transform: uppercase; }
         .form-control { width: 100%; padding: 12px; border: 1px solid #c0c0c0; border-radius: 8px; font-size: 15px; box-sizing: border-box; background: #fff; transition: 0.3s;}
-        .form-control:focus { outline: none; border-color: #0056b3; box-shadow: 0 0 0 3px rgba(0,86,179,0.1); }
+        .form-control:focus { outline: none; border-color: #198754; box-shadow: 0 0 0 3px rgba(25,135,84,0.1); }
         
         .btn-submit { background: #198754; color: white; width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 1.1em; font-weight: bold; cursor: pointer; margin-top: 15px; transition: 0.3s; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 6px rgba(25, 135, 84, 0.3);}
         .btn-submit:hover { background: #146c43; transform: translateY(-2px); }
 
+        /* --- RESULTADO (DERECHA) --- */
         .result-section { flex: 1; max-width: 500px; width: 100%; }
         .placeholder-box { background: rgba(255, 255, 255, 0.1); border: 2px dashed rgba(255, 255, 255, 0.4); border-radius: 15px; padding: 40px 20px; text-align: center; color: rgba(255, 255, 255, 0.7); font-weight: bold; }
 
+        /* Estilos del Recibo Estilo Módulo Profesional */
         .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); border-left: 8px solid #ce1126; text-align: left; animation: slideIn 0.4s ease-out; }
         .header-card { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px dashed #eee; padding-bottom: 15px; margin-bottom: 15px; }
         .monto { font-size: 1.8em; font-weight: 900; color: #1d1d1b; }
@@ -63,13 +72,15 @@ HTML_TEMPLATE = """
         .btn-verificar { width: 100%; background: #007bff; color: white; border: none; padding: 14px; border-radius: 8px; font-size: 1.05em; font-weight: bold; cursor: pointer; text-transform: uppercase; box-shadow: 0 4px 6px rgba(0, 123, 255, 0.3); transition: 0.3s;}
         .btn-verificar:hover { background: #0056b3; }
         
-        /* ALERTA DE PAGO DUPLICADO */
+        /* ALERTA DE PAGO DUPLICADO (ESTILO CILA) */
         .alerta-duplicado { background: #ffe3e3; padding: 25px; border-radius: 12px; border: 3px solid #ce1126; color: #900000; text-align: center; animation: slideIn 0.3s; box-shadow: 0 10px 20px rgba(206, 17, 38, 0.3);}
         .alerta-duplicado h3 { margin-top: 0; font-size: 1.5em; text-transform: uppercase; }
-        .alerta-duplicado p { font-size: 1.1em; margin-bottom: 5px; color: #333; }
         
         .alerta-error { background: #ffeeba; padding: 15px; border-radius: 8px; border: 1px solid #ffc107; color: #856404; text-align: center; font-size: 0.95em; animation: slideIn 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.2);}
         
+        /* --------------------------------------------------- */
+        /* ANIMACIÓN GIGANTE DE ÉXITO                          */
+        /* --------------------------------------------------- */
         .pantalla-exito {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.85); z-index: 9999;
@@ -110,7 +121,7 @@ HTML_TEMPLATE = """
     </div>
     
     <div class="logo-container">
-        <img src="https://i.imgur.com/RvPq8sZ.png" alt="Logo Empresa">
+        <img src="https://i.imgur.com/o5Q6bxd.png" alt="Logo Cila">
     </div>
 
     <div class="main-wrapper">
@@ -129,7 +140,7 @@ HTML_TEMPLATE = """
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">🏦 Entidad</label>
+                    <label class="form-label">🏦 Entidad Emisora</label>
                     <select id="val_banco" class="form-control" disabled><option value="BDV">Banco BDV</option></select>
                 </div>
                 <div class="form-group">
@@ -219,7 +230,7 @@ HTML_TEMPLATE = """
                     `;
                 }
             } else {
-                divRes.innerHTML = `<div class='alerta-error'><strong>⚠️ Pago no encontrado.</strong><br><br>El pago no se ha reflejado en el banco o los datos ingresados son incorrectos. Verifique e intente de nuevo.</div>`;
+                divRes.innerHTML = `<div class='alerta-error'><strong>⚠️ Pago no encontrado.</strong><br><br>El pago no se ha reflejado en el banco o los datos son incorrectos. Verifique e intente de nuevo.</div>`;
             }
         }
 
@@ -243,7 +254,7 @@ HTML_TEMPLATE = """
                 pantalla.style.display = 'none';
                 await cargarPagosFondo(); 
                 
-                // DEJA LA CAJA LIMPIA PARA EL SIGUIENTE CLIENTE
+                // DEJA LA CAJA LIMPIA
                 document.getElementById('resultadoBusqueda').innerHTML = `
                     <div class="placeholder-box" style="border-color: #2ecc71; color: #2ecc71;">
                         ✅<br>Pago registrado correctamente<br>Listo para la próxima validación
