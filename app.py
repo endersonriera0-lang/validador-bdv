@@ -1,116 +1,117 @@
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, session, redirect, url_for
 from datetime import datetime, timedelta
 import re
 import requests
 import os
 
 app = Flask(__name__)
+# Llave secreta para que las sesiones de usuario no se cierren solas
+app.secret_key = 'cila_secreto_super_seguro_2026' 
 
 # --- CONFIGURACIÓN DE TU BASE DE DATOS ---
-FIREBASE_URL = "https://validador-bdv-default-rtdb.firebaseio.com/pagos.json"
+# Fíjate que le quitamos el /pagos.json del final para poder crear múltiples carpetas
+FIREBASE_URL_BASE = "https://validador-bdv-default-rtdb.firebaseio.com"
+FIREBASE_PAGOS = f"{FIREBASE_URL_BASE}/pagos.json"
+FIREBASE_USUARIOS = f"{FIREBASE_URL_BASE}/usuarios.json"
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Validador Corporativo BDV</title>
+    <title>Sistema Corporativo CILA</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         /* 🎨 DISEÑO CORPORATIVO CILA 🎨 */
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            margin: 0; padding: 20px; 
-            display: flex; flex-direction: column; align-items: center; min-height: 100vh;
-            
-            /* --- FONDO DE PANTALLA --- */
-            background-image: url('https://i.imgur.com/rgsa5XH.png');
-            background-size: cover; background-position: center; background-attachment: fixed;
-        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; background-image: url('https://i.imgur.com/rgsa5XH.png'); background-size: cover; background-position: center; background-attachment: fixed; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 40, 80, 0.70); z-index: -2; backdrop-filter: blur(3px); }
         
-        /* Capa oscura translúcida para legibilidad */
-        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 40, 80, 0.75); z-index: -1; backdrop-filter: blur(2px); }
+        /* BARRA SUPERIOR */
+        .top-bar { position: fixed; top: 0; left: 0; width: 100%; background: rgba(0, 15, 30, 0.95); padding: 10px 20px; box-sizing: border-box; display: flex; justify-content: space-between; align-items: center; z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.6); border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .top-bar-espacio { flex: 1; color: white; font-size: 0.9em; font-weight: bold;}
+        .top-bar-logo { flex: 1; text-align: center; }
+        .top-bar-logo img { max-height: 45px; filter: drop-shadow(0px 2px 5px rgba(0,0,0,0.5)); }
+        .top-bar-botones { flex: 1; text-align: right; display: flex; justify-content: flex-end; gap: 10px;}
         
-        /* --- LOGO CORPORATIVO --- */
-        .logo-container { text-align: center; margin-bottom: 30px; margin-top: 10px; width: 100%; z-index: 1;}
-        .logo-container img { max-width: 200px; filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.3)); }
+        .btn-nav { background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 8px 12px; border-radius: 6px; cursor: pointer; text-decoration: none; font-size: 0.85em; transition: 0.3s;}
+        .btn-nav:hover { background: rgba(255,255,255,0.2); }
+        .btn-cierre { background: #ffc107; color: #333; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85em; box-shadow: 0 4px 6px rgba(255, 193, 7, 0.3); transition: 0.3s; text-decoration: none;}
+        .btn-cierre:hover { background: #e0a800; transform: translateY(-2px); }
 
-        /* CONTENEDOR LATERAL (FLEXBOX) */
-        .main-wrapper {
-            display: flex; flex-direction: row; gap: 30px; justify-content: center;
-            align-items: flex-start; width: 100%; max-width: 1000px; z-index: 1;
-        }
+        .main-wrapper { display: flex; flex-direction: row; gap: 30px; justify-content: center; align-items: flex-start; width: 100%; max-width: 1000px; z-index: 1; margin-top: 100px; padding: 0 20px; box-sizing: border-box; }
 
-        /* --- FORMULARIO (IZQUIERDA) --- */
-        .form-section { flex: 1; max-width: 450px; width: 100%; }
+        /* PANELES Y TARJETAS */
+        .card-panel { background: rgba(255, 255, 255, 0.95); padding: 30px 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); backdrop-filter: blur(5px); width: 100%; box-sizing: border-box;}
+        .form-section { flex: 1; max-width: 450px; width: 100%; border-top: 6px solid #198754; }
+        .result-section { flex: 1; max-width: 500px; width: 100%; }
         
-        .formulario-card { background: rgba(255, 255, 255, 0.95); padding: 30px 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border-top: 6px solid #198754; backdrop-filter: blur(5px); }
-        .titulo-form { margin-top: 0; color: #003366; text-align: center; margin-bottom: 20px; font-size: 1.4em; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;}
-        
+        .titulo-panel { margin-top: 0; color: #003366; text-align: center; margin-bottom: 20px; font-size: 1.4em; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;}
         .form-group { margin-bottom: 15px; text-align: left; }
         .form-label { display: block; font-weight: bold; color: #444; margin-bottom: 6px; font-size: 0.85em; text-transform: uppercase; }
         .form-control { width: 100%; padding: 12px; border: 1px solid #c0c0c0; border-radius: 8px; font-size: 15px; box-sizing: border-box; background: #fff; transition: 0.3s;}
         .form-control:focus { outline: none; border-color: #198754; box-shadow: 0 0 0 3px rgba(25,135,84,0.1); }
+        .form-control:disabled { background: #e9ecef; font-weight: bold; color: #333; cursor: not-allowed; border-color: #ccc;}
         
-        .btn-submit { background: #198754; color: white; width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 1.1em; font-weight: bold; cursor: pointer; margin-top: 15px; transition: 0.3s; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 6px rgba(25, 135, 84, 0.3);}
+        .btn-submit { background: #198754; color: white; width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 1.1em; font-weight: bold; cursor: pointer; margin-top: 15px; transition: 0.3s; text-transform: uppercase; box-shadow: 0 4px 6px rgba(25, 135, 84, 0.3);}
         .btn-submit:hover { background: #146c43; transform: translateY(-2px); }
 
-        /* --- RESULTADO (DERECHA) --- */
-        .result-section { flex: 1; max-width: 500px; width: 100%; }
-        .placeholder-box { background: rgba(255, 255, 255, 0.1); border: 2px dashed rgba(255, 255, 255, 0.4); border-radius: 15px; padding: 40px 20px; text-align: center; color: rgba(255, 255, 255, 0.7); font-weight: bold; }
-
-        /* Estilos del Recibo Estilo Módulo Profesional */
+        .placeholder-box { background: rgba(255, 255, 255, 0.1); border: 2px dashed rgba(255, 255, 255, 0.4); border-radius: 15px; padding: 40px 20px; text-align: center; color: rgba(255, 255, 255, 0.8); font-weight: bold; }
         .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); border-left: 8px solid #ce1126; text-align: left; animation: slideIn 0.4s ease-out; }
         .header-card { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px dashed #eee; padding-bottom: 15px; margin-bottom: 15px; }
         .monto { font-size: 1.8em; font-weight: 900; color: #1d1d1b; }
-        
         .datos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
         .dato-item { display: flex; flex-direction: column; }
         .dato-label { font-size: 0.75em; color: #888; text-transform: uppercase; font-weight: bold; }
         .dato-valor { font-size: 1.05em; color: #222; margin-top: 4px; font-weight: 600;}
         .ref { font-family: monospace; font-size: 1.2em; color: #0056b3; font-weight: bold; }
+        .btn-verificar { width: 100%; background: #007bff; color: white; border: none; padding: 14px; border-radius: 8px; font-size: 1.05em; font-weight: bold; cursor: pointer; text-transform: uppercase; transition: 0.3s;}
         
-        .btn-verificar { width: 100%; background: #007bff; color: white; border: none; padding: 14px; border-radius: 8px; font-size: 1.05em; font-weight: bold; cursor: pointer; text-transform: uppercase; box-shadow: 0 4px 6px rgba(0, 123, 255, 0.3); transition: 0.3s;}
-        .btn-verificar:hover { background: #0056b3; }
+        .alerta-duplicado { background: #ffe3e3; padding: 25px; border-radius: 12px; border: 3px solid #ce1126; color: #900000; text-align: center; animation: slideIn 0.3s;}
+        .alerta-error { background: #ffeeba; padding: 15px; border-radius: 8px; border: 1px solid #ffc107; color: #856404; text-align: center; font-size: 0.95em; animation: slideIn 0.3s;}
         
-        /* ALERTA DE PAGO DUPLICADO (ESTILO CILA) */
-        .alerta-duplicado { background: #ffe3e3; padding: 25px; border-radius: 12px; border: 3px solid #ce1126; color: #900000; text-align: center; animation: slideIn 0.3s; box-shadow: 0 10px 20px rgba(206, 17, 38, 0.3);}
-        .alerta-duplicado h3 { margin-top: 0; font-size: 1.5em; text-transform: uppercase; }
-        
-        .alerta-error { background: #ffeeba; padding: 15px; border-radius: 8px; border: 1px solid #ffc107; color: #856404; text-align: center; font-size: 0.95em; animation: slideIn 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.2);}
-        
-        /* --------------------------------------------------- */
-        /* ANIMACIÓN GIGANTE DE ÉXITO                          */
-        /* --------------------------------------------------- */
-        .pantalla-exito {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.85); z-index: 9999;
-            display: none; justify-content: center; align-items: center;
-            backdrop-filter: blur(8px);
-        }
-        .caja-exito {
-            background: #2ecc71; padding: 40px 60px; border-radius: 20px;
-            text-align: center; color: white; border: 5px solid white;
-            box-shadow: 0 20px 50px rgba(46, 204, 113, 0.5);
-            animation: estallar 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            display: flex; flex-direction: column; align-items: center;
-        }
+        .pantalla-exito { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); z-index: 9999; display: none; justify-content: center; align-items: center; backdrop-filter: blur(8px); }
+        .caja-exito { background: #2ecc71; padding: 40px 60px; border-radius: 20px; text-align: center; color: white; border: 5px solid white; animation: estallar 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); display: flex; flex-direction: column; align-items: center; }
         .icono-exito { font-size: 90px; margin-bottom: 10px; line-height: 1;}
         .texto-exito { font-size: 38px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;}
         .subtexto-exito { font-size: 18px; margin-top: 10px; opacity: 0.9; font-weight: bold;}
+        
+        /* TABLA DE USUARIOS */
+        .tabla-usuarios { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .tabla-usuarios th, .tabla-usuarios td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        .tabla-usuarios th { background-color: #f4f4f4; color: #333; }
         
         @keyframes estallar { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
         @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
 
         @media (max-width: 850px) {
-            .main-wrapper { flex-direction: column; align-items: center; gap: 20px; }
+            .main-wrapper { flex-direction: column; align-items: center; gap: 20px; margin-top: 90px;}
             .placeholder-box { display: none; }
-            .caja-exito { padding: 30px 20px; width: 85%; box-sizing: border-box;}
-            .texto-exito { font-size: 28px; }
+            .top-bar-espacio { display: none; }
         }
     </style>
 </head>
 <body>
     <div class="overlay"></div>
+    <iframe id="iframeTicket" style="display:none;"></iframe>
+
+    {% if session.usuario %}
+    <div class="top-bar">
+        <div class="top-bar-espacio">👤 {{ session.usuario }} ({{ session.rol | capitalize }})</div>
+        <div class="top-bar-logo">
+            <img src="https://i.imgur.com/o5Q6bxd.png" alt="Logo Cila">
+        </div>
+        <div class="top-bar-botones">
+            {% if session.rol == 'admin' %}
+                {% if view == 'admin' %}
+                    <a href="/" class="btn-nav">⬅️ Volver a Caja</a>
+                {% else %}
+                    <button class="btn-cierre" onclick="imprimirCierre()">🖨️</button>
+                    <a href="/?view=admin" class="btn-nav">⚙️ Usuarios</a>
+                {% endif %}
+            {% endif %}
+            <a href="/logout" class="btn-nav" style="background: rgba(206,17,38,0.8); border-color: red;">Salir</a>
+        </div>
+    </div>
+    {% endif %}
 
     <div id="pantallaExito" class="pantalla-exito">
         <div class="caja-exito">
@@ -119,18 +120,77 @@ HTML_TEMPLATE = """
             <div id="textoSucursal" class="subtexto-exito">Procesado con éxito</div>
         </div>
     </div>
-    
-    <div class="logo-container">
-        <img src="https://i.imgur.com/dhnDDIS.png" alt="Logo Cila">
-    </div>
 
     <div class="main-wrapper">
-        <div class="form-section">
-            <div class="formulario-card">
-                <h2 class="titulo-form">Validación de Pagos</h2>
-                
+        
+        {% if not session.usuario %}
+        <div class="card-panel form-section" style="border-top-color: #0056b3; margin: auto;">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <img src="https://i.imgur.com/o5Q6bxd.png" style="max-height: 80px;">
+            </div>
+            <h2 class="titulo-panel">Acceso al Sistema</h2>
+            
+            {% if error %}
+                <div class="alerta-error" style="margin-bottom: 15px;">{{ error }}</div>
+            {% endif %}
+            
+            <form action="/login" method="POST">
                 <div class="form-group">
-                    <label class="form-label">📍 Ubicación (Sucursal)</label>
+                    <label class="form-label">👤 Usuario</label>
+                    <input type="text" name="usuario" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">🔒 Contraseña</label>
+                    <input type="password" name="password" class="form-control" required>
+                </div>
+                <button type="submit" class="btn-submit" style="background: #0056b3;">INICIAR SESIÓN</button>
+            </form>
+        </div>
+
+        {% elif view == 'admin' and session.rol == 'admin' %}
+        <div class="card-panel" style="width: 100%; max-width: 800px; border-top: 6px solid #ffc107;">
+            <h2 class="titulo-panel">⚙️ Gestión de Perfiles y Usuarios</h2>
+            
+            <div style="display: flex; gap: 30px; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 300px; background: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #ddd;">
+                    <h3 style="margin-top: 0; color: #333;">Crear Nuevo Perfil</h3>
+                    <form action="/crear_usuario" method="POST">
+                        <div class="form-group"><label class="form-label">Nombre de Usuario</label><input type="text" name="usuario" class="form-control" required></div>
+                        <div class="form-group"><label class="form-label">Contraseña</label><input type="text" name="password" class="form-control" required></div>
+                        <div class="form-group"><label class="form-label">Rol del Sistema</label>
+                            <select name="rol" class="form-control">
+                                <option value="cajero">Cajero (Solo valida en su sucursal)</option>
+                                <option value="admin">Administrador (Acceso Total)</option>
+                            </select>
+                        </div>
+                        <div class="form-group"><label class="form-label">Sucursal Anclada (Para Cajeros)</label>
+                            <select name="sucursal" class="form-control">
+                                <option value="Cila 22">Cila 22</option><option value="Cila 23">Cila 23</option><option value="Cila 24">Cila 24</option><option value="Cila 25">Cila 25</option><option value="Cila Babilon">Cila Babilon</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn-submit" style="background: #ffc107; color: #333; margin-top: 5px;">Crear Usuario</button>
+                    </form>
+                </div>
+                
+                <div style="flex: 1; min-width: 300px;">
+                    <div style="background: #e2e3e5; padding: 20px; border-radius: 10px; border-left: 5px solid #6c757d;">
+                        <h4 style="margin-top:0;">🔐 ¿Cómo funciona el RBAC?</h4>
+                        <p style="font-size: 0.9em; color: #444;">
+                            <b>Administrador:</b> Puede ver todas las sucursales, hacer cierres de caja e imprimir. Mantiene acceso a este panel.<br><br>
+                            <b>Cajero:</b> Solo verá la pantalla de caja principal. La casilla de "Ubicación" estará bloqueada permanentemente en la sucursal que le anclaste aquí. Así evitas errores de facturación cruzada.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% else %}
+        <div class="form-section card-panel">
+            <h2 class="titulo-panel">Validación de Pagos</h2>
+            
+            <div class="form-group">
+                <label class="form-label">📍 Ubicación (Sucursal)</label>
+                {% if session.rol == 'admin' %}
                     <select id="val_ubicacion" class="form-control">
                         <option value="Cila 22">Cila 22</option>
                         <option value="Cila 23">Cila 23</option>
@@ -138,143 +198,190 @@ HTML_TEMPLATE = """
                         <option value="Cila 25">Cila 25</option>
                         <option value="Cila Babilon">Cila Babilon</option>
                     </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">🏦 Entidad Emisora</label>
-                    <select id="val_banco" class="form-control" disabled><option value="BDV">Banco BDV</option></select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">💰 Monto (Bs.)</label>
-                    <input type="text" id="val_monto" class="form-control" placeholder="Ej: 25,50">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">🧾 Número de Referencia</label>
-                    <input type="text" id="val_referencia" class="form-control" placeholder="Últimos 4 o 6 dígitos">
-                </div>
-                <button class="btn-submit" onclick="buscarPago()">Validar Pago</button>
+                {% else %}
+                    <input type="text" id="val_ubicacion" class="form-control" value="{{ session.sucursal }}" disabled>
+                    <div style="font-size: 0.75em; color: #dc3545; margin-top: 4px;">🔒 Tu perfil está anclado a esta sucursal.</div>
+                {% endif %}
             </div>
+            
+            <div class="form-group"><label class="form-label">🏦 Entidad Emisora</label><select class="form-control" disabled><option>Banco BDV</option></select></div>
+            <div class="form-group"><label class="form-label">💰 Monto (Bs.)</label><input type="text" id="val_monto" class="form-control" placeholder="Ej: 25,50"></div>
+            <div class="form-group"><label class="form-label">🧾 Número de Referencia</label><input type="text" id="val_referencia" class="form-control" placeholder="Últimos 4 o 6 dígitos"></div>
+            <button class="btn-submit" onclick="buscarPago()">Validar Pago</button>
         </div>
 
         <div class="result-section" id="resultadoBusqueda">
             <div class="placeholder-box">🔍<br>El resultado de la validación<br>aparecerá aquí</div>
         </div>
-    </div>
-    
-    <script>
-        let todosLosPagos = [];
+        
+        <script>
+            let todosLosPagos = [];
 
-        async function cargarPagosFondo() {
-            try {
-                const res = await fetch('/api/pagos');
-                todosLosPagos = await res.json();
-            } catch(e) {}
-        }
-        setInterval(cargarPagosFondo, 3000);
-        cargarPagosFondo();
+            async function cargarPagosFondo() {
+                try { const res = await fetch('/api/pagos'); todosLosPagos = await res.json(); } catch(e) {}
+            }
+            setInterval(cargarPagosFondo, 3000);
+            cargarPagosFondo();
 
-        function buscarPago() {
-            const inputMonto = document.getElementById('val_monto');
-            const inputRef = document.getElementById('val_referencia');
-            
-            const monto = inputMonto.value.trim().replace('.', ','); 
-            const ref = inputRef.value.trim();
-            const divRes = document.getElementById('resultadoBusqueda');
+            function buscarPago() {
+                const inputMonto = document.getElementById('val_monto');
+                const inputRef = document.getElementById('val_referencia');
+                const monto = inputMonto.value.trim().replace('.', ','); 
+                const ref = inputRef.value.trim();
+                const divRes = document.getElementById('resultadoBusqueda');
 
-            if(ref === "") {
-                divRes.innerHTML = "<div class='alerta-error'>⚠️ <b>Campo obligatorio:</b> Debes ingresar el N° de Referencia.</div>";
-                return;
+                if(ref === "") { divRes.innerHTML = "<div class='alerta-error'>⚠️ <b>Campo obligatorio:</b> Debes ingresar el N° de Referencia.</div>"; return; }
+                inputMonto.value = ''; inputRef.value = '';
+
+                const pagoEncontrado = todosLosPagos.find(p => p.ref.includes(ref) && (monto === "" ? true : p.monto.includes(monto)));
+
+                if(pagoEncontrado) {
+                    if(pagoEncontrado.estado === 'verificado') {
+                        divRes.innerHTML = `<div class="alerta-duplicado"><h3>🚨 PAGO DUPLICADO 🚨</h3><p>Este pago <b>ya fue procesado</b>.</p><p><b>📍 Lugar:</b> ${pagoEncontrado.ubicacion || 'Desconocido'}</p><p><b>🧾 Ref:</b> ${pagoEncontrado.ref}</p><p><b>💰 Monto:</b> Bs. ${pagoEncontrado.monto}</p></div>`;
+                    } else {
+                        divRes.innerHTML = `
+                            <div class="card">
+                                <div class="header-card"><div class="monto">Bs. ${pagoEncontrado.monto}</div><div style="color: #007bff; font-weight: bold;">⏳ Pendiente</div></div>
+                                <div class="datos-grid">
+                                    <div class="dato-item"><span class="dato-label">🏦 Entidad Emisora</span><span class="dato-valor">Banco BDV</span></div>
+                                    <div class="dato-item"><span class="dato-label">📅 Fecha de Pago</span><span class="dato-valor">${pagoEncontrado.fecha}</span></div>
+                                    <div class="dato-item"><span class="dato-label">📱 Teléfono Emisor</span><span class="dato-valor">${pagoEncontrado.telf}</span></div>
+                                    <div class="dato-item"><span class="dato-label">🧾 N° Referencia</span><span class="dato-valor ref">${pagoEncontrado.ref}</span></div>
+                                </div>
+                                <button class="btn-verificar" onclick="marcarVerificado('${pagoEncontrado.id}', this)">✔️ Confirmar Pago en Caja</button>
+                            </div>`;
+                    }
+                } else { divRes.innerHTML = `<div class='alerta-error'><strong>⚠️ Pago no encontrado.</strong><br><br>Verifique e intente de nuevo.</div>`; }
             }
 
-            // LIMPIEZA AUTOMÁTICA DE LOS CAMPOS
-            inputMonto.value = '';
-            inputRef.value = '';
-
-            const pagoEncontrado = todosLosPagos.find(p => {
-                let coincideRef = p.ref.includes(ref);
-                let coincideMonto = (monto === "") ? true : p.monto.includes(monto);
-                return coincideRef && coincideMonto;
-            });
-
-            if(pagoEncontrado) {
-                if(pagoEncontrado.estado === 'verificado') {
-                    // ESCUDO ANTI-FRAUDE: ALERTA DE PAGO DUPLICADO
-                    divRes.innerHTML = `
-                        <div class="alerta-duplicado">
-                            <h3>🚨 PAGO DUPLICADO 🚨</h3>
-                            <p>Este pago <b>ya fue procesado y validado</b> anteriormente en el sistema.</p>
-                            <br>
-                            <p><b>📍 Lugar de despacho:</b> ${pagoEncontrado.ubicacion || 'Desconocido'}</p>
-                            <p><b>🧾 Referencia:</b> ${pagoEncontrado.ref}</p>
-                            <p><b>💰 Monto:</b> Bs. ${pagoEncontrado.monto}</p>
-                            <br>
-                            <i style="color: #600; font-size: 0.9em;">⚠️ No despache mercancía bajo esta referencia nuevamente.</i>
-                        </div>
-                    `;
-                } else {
-                    // PAGO NUEVO (LISTO PARA VERIFICAR)
-                    divRes.innerHTML = `
-                        <div class="card">
-                            <div class="header-card">
-                                <div class="monto">Bs. ${pagoEncontrado.monto}</div>
-                                <div style="color: #007bff; font-weight: bold;">⏳ Pendiente</div>
-                            </div>
-                            <div class="datos-grid">
-                                <div class="dato-item"><span class="dato-label">🏦 Entidad Emisora</span><span class="dato-valor">Banco BDV</span></div>
-                                <div class="dato-item"><span class="dato-label">📅 Fecha de Pago</span><span class="dato-valor">${pagoEncontrado.fecha}</span></div>
-                                <div class="dato-item"><span class="dato-label">📱 Teléfono Emisor</span><span class="dato-valor">${pagoEncontrado.telf}</span></div>
-                                <div class="dato-item"><span class="dato-label">🧾 N° Referencia</span><span class="dato-valor ref">${pagoEncontrado.ref}</span></div>
-                            </div>
-                            
-                            <button class="btn-verificar" onclick="marcarVerificado('${pagoEncontrado.id}', this)">✔️ Confirmar Pago en Caja</button>
-                        </div>
-                    `;
-                }
-            } else {
-                divRes.innerHTML = `<div class='alerta-error'><strong>⚠️ Pago no encontrado.</strong><br><br>El pago no se ha reflejado en el banco o los datos son incorrectos. Verifique e intente de nuevo.</div>`;
-            }
-        }
-
-        async function marcarVerificado(id_pago, boton) {
-            const ubicacionSeleccionada = document.getElementById('val_ubicacion').value;
-            
-            boton.innerText = "Procesando...";
-            boton.style.background = "#888";
-            
-            await fetch('/api/verificar/' + id_pago, { 
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ubicacion: ubicacionSeleccionada })
-            });
-            
-            document.getElementById('textoSucursal').innerText = "Despachado en: " + ubicacionSeleccionada;
-            const pantalla = document.getElementById('pantallaExito');
-            pantalla.style.display = 'flex';
-            
-            setTimeout(async () => {
-                pantalla.style.display = 'none';
-                await cargarPagosFondo(); 
+            async function marcarVerificado(id_pago, boton) {
+                const ubicacionSeleccionada = document.getElementById('val_ubicacion').value;
+                boton.innerText = "Procesando..."; boton.style.background = "#888";
                 
-                // DEJA LA CAJA LIMPIA
-                document.getElementById('resultadoBusqueda').innerHTML = `
-                    <div class="placeholder-box" style="border-color: #2ecc71; color: #2ecc71;">
-                        ✅<br>Pago registrado correctamente<br>Listo para la próxima validación
-                    </div>
-                `;
-            }, 2500);
-        }
-    </script>
+                await fetch('/api/verificar/' + id_pago, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ubicacion: ubicacionSeleccionada }) });
+                
+                document.getElementById('textoSucursal').innerText = "Despachado en: " + ubicacionSeleccionada;
+                const pantalla = document.getElementById('pantallaExito');
+                pantalla.style.display = 'flex';
+                
+                setTimeout(async () => {
+                    pantalla.style.display = 'none';
+                    await cargarPagosFondo(); 
+                    document.getElementById('resultadoBusqueda').innerHTML = `<div class="placeholder-box" style="border-color: #2ecc71; color: #2ecc71;">✅<br>Pago registrado correctamente<br>Listo para la próxima validación</div>`;
+                }, 2500);
+            }
+
+            // SISTEMA DE IMPRESIÓN (SOLO ADMIN LO PUEDE ACTIVAR)
+            function imprimirCierre() {
+                let d = new Date();
+                let dia = String(d.getDate()).padStart(2, '0');
+                let mes = String(d.getMonth() + 1).padStart(2, '0');
+                let ano = d.getFullYear();
+                let fechaHoy = `${dia}/${mes}/${ano}`;
+
+                let pagosHoy = todosLosPagos.filter(p => p.estado === 'verificado' && p.fecha.includes(fechaHoy));
+                let totalBs = 0; let desglose = {};
+
+                pagosHoy.forEach(p => {
+                    let montoNumerico = parseFloat(p.monto.replace(/\./g, '').replace(',', '.'));
+                    if(!isNaN(montoNumerico)) { totalBs += montoNumerico; }
+                    let ubi = p.ubicacion || 'Sin especificar';
+                    if(!desglose[ubi]) desglose[ubi] = { cant: 0, bs: 0 };
+                    desglose[ubi].cant += 1; desglose[ubi].bs += montoNumerico;
+                });
+
+                let totalFormateado = totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                
+                let ticketHTML = `<!DOCTYPE html><html><head><style>@page { margin: 0; } body { font-family: 'Courier New', Courier, monospace; width: 76mm; margin: 0 auto; padding: 10px 5px; color: #000; font-size: 13px; background: white;} .centrado { text-align: center; } .titulo { font-size: 18px; font-weight: bold; margin: 5px 0; } .subtitulo { font-size: 14px; margin: 3px 0; border-bottom: 1px dashed #000; padding-bottom: 5px; } .linea-punteada { border-top: 1px dashed #000; margin: 10px 0; } .fila { display: flex; justify-content: space-between; margin-bottom: 3px; } .bold { font-weight: bold; } .total-caja { font-size: 18px; border-top: 2px dashed #000; border-bottom: 2px dashed #000; padding: 10px 0; margin: 15px 0;} </style></head><body><div class="centrado"><img src="https://i.imgur.com/o5Q6bxd.png" style="max-width: 150px; filter: grayscale(100%); margin-bottom: 10px;"><div class="titulo">REPORTE DE CAJA</div><div class="subtitulo">VALIDADOR BDV</div></div><div style="margin-top: 15px;"><div class="fila"><span>FECHA:</span> <span>${fechaHoy}</span></div><div class="fila"><span>HORA IMPRESIÓN:</span> <span>${d.toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</span></div></div><div class="linea-punteada"></div><div class="centrado bold" style="margin-bottom: 10px;">RESUMEN GENERAL</div><div class="fila"><span>Operaciones Validadas:</span> <span>${pagosHoy.length}</span></div><div class="total-caja"><div class="fila bold"><span>TOTAL INGRESOS:</span> <span>Bs. ${totalFormateado}</span></div></div><div class="linea-punteada"></div><div class="centrado bold" style="margin-bottom: 10px;">DESGLOSE POR SUCURSAL</div>`;
+
+                for (let [ubi, datos] of Object.entries(desglose)) {
+                    let bsF = datos.bs.toLocaleString('es-VE', { minimumFractionDigits: 2 });
+                    ticketHTML += `<div class="fila"><span>${ubi} (${datos.cant} op):</span> <span>Bs. ${bsF}</span></div>`;
+                }
+
+                if(Object.keys(desglose).length === 0) ticketHTML += `<div class="centrado" style="margin-top: 10px;">No hay pagos verificados hoy.</div>`;
+                ticketHTML += `<div class="linea-punteada"></div><div class="centrado" style="margin-top: 15px; font-size: 11px;">* Fin del reporte *<br>Generado por CILA Pagos Automáticos<br>- - - - - - - - - - -</div></body></html>`;
+
+                let iframe = document.getElementById('iframeTicket');
+                iframe.contentWindow.document.open();
+                iframe.contentWindow.document.write(ticketHTML);
+                iframe.contentWindow.document.close();
+                setTimeout(() => { iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 500);
+            }
+        </script>
+        {% endif %}
+    </div>
 </body>
 </html>
 """
 
+# ==========================================
+# RUTAS DE AUTENTICACIÓN Y PANELES
+# ==========================================
+
 @app.route('/')
 def home():
-    return render_template_string(HTML_TEMPLATE)
+    view = request.args.get('view', 'caja')
+    return render_template_string(HTML_TEMPLATE, view=view)
+
+@app.route('/login', methods=['POST'])
+def do_login():
+    usuario_form = request.form.get('usuario')
+    password_form = request.form.get('password')
+
+    # CUENTA MAESTRA DE EMERGENCIA (Para que puedas entrar la primera vez a crear usuarios)
+    if usuario_form == 'admin' and password_form == 'cila2026':
+        session['usuario'] = 'Admin Maestro'
+        session['rol'] = 'admin'
+        session['sucursal'] = 'Todas'
+        return redirect('/')
+
+    # BUSCAR EN FIREBASE SI EL USUARIO FUE CREADO POR TI
+    try:
+        res = requests.get(FIREBASE_USUARIOS)
+        if res.status_code == 200 and res.json():
+            usuarios_db = res.json()
+            for id_fb, u_info in usuarios_db.items():
+                if u_info.get('usuario') == usuario_form and u_info.get('password') == password_form:
+                    # Iniciar sesión exitosa
+                    session['usuario'] = u_info.get('usuario')
+                    session['rol'] = u_info.get('rol')
+                    session['sucursal'] = u_info.get('sucursal')
+                    return redirect('/')
+    except:
+        pass
+        
+    # Si llega aquí, la contraseña es incorrecta
+    return render_template_string(HTML_TEMPLATE, error="Usuario o contraseña incorrecta. Intente de nuevo.")
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect('/')
+
+@app.route('/crear_usuario', methods=['POST'])
+def crear_usuario():
+    # Seguridad: Solo un admin puede crear otro usuario
+    if session.get('rol') != 'admin':
+        return redirect('/')
+        
+    nuevo_usuario = {
+        "usuario": request.form.get('usuario'),
+        "password": request.form.get('password'),
+        "rol": request.form.get('rol'),
+        "sucursal": request.form.get('sucursal')
+    }
+    requests.post(FIREBASE_USUARIOS, json=nuevo_usuario)
+    return redirect('/?view=admin')
+
+# ==========================================
+# RUTAS DE API Y WEBHOOK (SE MANTIENEN IGUAL)
+# ==========================================
 
 @app.route('/api/pagos')
 def get_pagos():
     try:
-        respuesta = requests.get(FIREBASE_URL)
+        respuesta = requests.get(FIREBASE_PAGOS)
         if respuesta.status_code == 200 and respuesta.json():
             datos = respuesta.json()
             lista_pagos = []
@@ -294,14 +401,8 @@ def verificar_pago(id_pago):
     try:
         data = request.get_json() or {}
         ubicacion_caja = data.get("ubicacion", "Desconocida")
-
-        base_url = FIREBASE_URL.replace('.json', '')
-        url_item = f"{base_url}/{id_pago}.json"
-        
-        requests.patch(url_item, json={
-            "estado": "verificado",
-            "ubicacion": ubicacion_caja
-        })
+        url_item = f"{FIREBASE_URL_BASE}/pagos/{id_pago}.json"
+        requests.patch(url_item, json={"estado": "verificado", "ubicacion": ubicacion_caja})
         return jsonify({"status": "ok"})
     except Exception as e:
         return jsonify({"status": "error", "msg": str(e)})
@@ -310,20 +411,16 @@ def verificar_pago(id_pago):
 def webhook():
     texto = request.get_data(as_text=True)
     texto_limpio = texto.lower()
-
     if "pagomovil" not in texto_limpio and "pagomóvil" not in texto_limpio:
         return {"status": "ignorado"}, 200
 
     try:
         monto_match = re.search(r"bs\.?\s?([\d,.]+)", texto, re.IGNORECASE)
         monto = monto_match.group(1) if monto_match else "0,00"
-
         telf_match = re.search(r"del\s(04\d{2}[-]?\d{7})", texto, re.IGNORECASE)
         telf = telf_match.group(1).replace("-", "") if telf_match else "Desconocido"
-
         ref_match = re.search(r"ref:\s?(\d+)", texto, re.IGNORECASE)
         ref = ref_match.group(1)[-6:] if ref_match else "000000" 
-
         hora_venezuela = datetime.utcnow() - timedelta(hours=4)
         
         pago = {
@@ -334,10 +431,8 @@ def webhook():
             "fecha": hora_venezuela.strftime("%d/%m/%Y - %I:%M %p"),
             "estado": "pendiente"
         }
-        
-        requests.post(FIREBASE_URL, json=pago)
+        requests.post(FIREBASE_PAGOS, json=pago)
         return {"status": "ok"}, 200
-        
     except Exception as e:
         return {"status": "error", "msg": str(e)}, 200
 
