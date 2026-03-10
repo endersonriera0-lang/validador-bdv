@@ -110,7 +110,7 @@ HTML_TEMPLATE = """
     </div>
     
     <div class="logo-container">
-        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Banco_de_Venezuela_logo.svg/1024px-Banco_de_Venezuela_logo.svg.png" alt="Logo Empresa">
+        <img src="https://i.imgur.com/RvPq8sZ.png" alt="Logo Empresa">
     </div>
 
     <div class="main-wrapper">
@@ -129,7 +129,7 @@ HTML_TEMPLATE = """
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">🏦 Entidad Emisora</label>
+                    <label class="form-label">🏦 Entidad</label>
                     <select id="val_banco" class="form-control" disabled><option value="BDV">Banco BDV</option></select>
                 </div>
                 <div class="form-group">
