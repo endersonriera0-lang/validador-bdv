@@ -97,7 +97,7 @@ HTML_TEMPLATE = """
     <div class="top-bar">
         <div class="top-bar-espacio">👤 {{ session.usuario }} ({{ session.rol | capitalize }})</div>
         <div class="top-bar-logo">
-            <img src="https://i.imgur.com/o5Q6bxd.png" alt="Logo Cila">
+            <img src="https://i.imgur.com/j4gWZ33.png" alt="Logo Cila">
         </div>
         <div class="top-bar-botones">
             {% if session.rol == 'admin' %}
