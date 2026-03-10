@@ -121,7 +121,7 @@ HTML_TEMPLATE = """
     </div>
     
     <div class="logo-container">
-        <img src="https://i.imgur.com/o5Q6bxd.png" alt="Logo Cila">
+        <img src="https://i.imgur.com/dhnDDIS.png" alt="Logo Cila">
     </div>
 
     <div class="main-wrapper">
